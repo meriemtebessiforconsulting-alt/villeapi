@@ -1,4 +1,5 @@
 package com.example.villeapi;
+
 import org.springframework.stereotype.Service;
 import java.text.Normalizer;
 import java.util.List;
@@ -112,7 +113,30 @@ public class CityService {
             .orElse(Double.NaN);
     }
 
+    /**
+     * Filtre les villes selon une plage de budget moyen (averagePrice).
+     * Utilise getSafeAveragePrice() pour éviter les NullPointerException.
+     */
+    public List<City> filterCitiesByAverageBudget(List<City> cities, Double minAverageBudget, Double maxAverageBudget) {
+        if (minAverageBudget == null && maxAverageBudget == null) {
+            return cities;
+        }
 
+        return cities.stream()
+            .filter(city -> {
+                double avgPrice = city.getSafeAveragePrice(); // 404 si absent
+                boolean matches = true;
 
+                if (minAverageBudget != null) {
+                    matches = matches && avgPrice >= minAverageBudget;
+                }
+                if (maxAverageBudget != null) {
+                    matches = matches && avgPrice <= maxAverageBudget;
+                }
+
+                return matches;
+            })
+            .collect(Collectors.toList());
+    }
 
 }

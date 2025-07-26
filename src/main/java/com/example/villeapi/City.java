@@ -4,7 +4,7 @@ import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
-@JsonIgnoreProperties(ignoreUnknown = true) // optionnelle mais utile pour ignorer les champs non présents
+@JsonIgnoreProperties(ignoreUnknown = true) // Ignore les champs JSON non mappés
 public class City {
     private String geonameId;
     private String defaultName;
@@ -27,7 +27,8 @@ public class City {
     private PricePerm2 pricePerm2;
     private String adminName1;
 
-    // Getters et setters pour tous les champs
+    // Getters et setters
+
     public String getGeonameId() { return geonameId; }
     public void setGeonameId(String geonameId) { this.geonameId = geonameId; }
 
@@ -40,23 +41,64 @@ public class City {
     public GeoCoordinates getGeoCoordinates() { return geoCoordinates; }
     public void setGeoCoordinates(GeoCoordinates geoCoordinates) { this.geoCoordinates = geoCoordinates; }
 
-    // Getters & Setters
- // ✅ Getter
-    public List<Note> getNotes() {
-        return notes;
-    }
+    public String getFeatureClass() { return featureClass; }
+    public void setFeatureClass(String featureClass) { this.featureClass = featureClass; }
 
-    // ✅ Setter (utile pour le mapping JSON)
-    public void setNotes(List<Note> notes) {
-        this.notes = notes;
-    }
-    
- // getter/setter
+    public String getFeatureCode() { return featureCode; }
+    public void setFeatureCode(String featureCode) { this.featureCode = featureCode; }
+
+    public String getCountryCode() { return countryCode; }
+    public void setCountryCode(String countryCode) { this.countryCode = countryCode; }
+
+    public String getCc2() { return cc2; }
+    public void setCc2(String cc2) { this.cc2 = cc2; }
+
+    public String getAdmin1Code() { return admin1Code; }
+    public void setAdmin1Code(String admin1Code) { this.admin1Code = admin1Code; }
+
+    public String getAdmin2Code() { return admin2Code; }
+    public void setAdmin2Code(String admin2Code) { this.admin2Code = admin2Code; }
+
+    public String getAdmin3Code() { return admin3Code; }
+    public void setAdmin3Code(String admin3Code) { this.admin3Code = admin3Code; }
+
+    public String getAdmin4Code() { return admin4Code; }
+    public void setAdmin4Code(String admin4Code) { this.admin4Code = admin4Code; }
+
+    public Integer getPopulation() { return population; }
+    public void setPopulation(Integer population) { this.population = population; }
+
+    public String getElevation() { return elevation; }
+    public void setElevation(String elevation) { this.elevation = elevation; }
+
+    public String getDem() { return dem; }
+    public void setDem(String dem) { this.dem = dem; }
+
+    public String getTimezone() { return timezone; }
+    public void setTimezone(String timezone) { this.timezone = timezone; }
+
+    public String getModificationDate() { return modificationDate; }
+    public void setModificationDate(String modificationDate) { this.modificationDate = modificationDate; }
+
+    public List<Note> getNotes() { return notes; }
+    public void setNotes(List<Note> notes) { this.notes = notes; }
+
     public PricePerm2 getPricePerm2() { return pricePerm2; }
     public void setPricePerm2(PricePerm2 pricePerm2) { this.pricePerm2 = pricePerm2; }
-    
- // getter/setter
+
     public String getAdminName1() { return adminName1; }
     public void setAdminName1(String adminName1) { this.adminName1 = adminName1; }
+
+    /**
+     * Retourne la moyenne sécurisée du prix.
+     * Si pricePerm2 ou average est null, renvoie 404.
+     */
+    public double getSafeAveragePrice() {
+        if (pricePerm2 == null || pricePerm2.getAverage() == null) {
+            return 404;
+        }
+        return pricePerm2.getAverage();
+    }
     
+
 }

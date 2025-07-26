@@ -4,8 +4,6 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.Map;
-import com.example.villeapi.CityService;
-import com.example.villeapi.City;
 
 @RestController
 @RequestMapping
@@ -32,10 +30,8 @@ public class CityController {
     ) {
         List<City> allCities = rootData.getCities().getCitiesList();
 
-        // 1. Filtres textuels + note
         List<City> filteredCities = cityService.filterCities(allCities, equalCityName, nearCityName, minGlobalNote);
 
-        // 2. Filtre géographique (rayon autour d'une ville)
         if (referenceCityName != null && radiusKm != null) {
             City referenceCity = allCities.stream()
                 .filter(c -> c.getDefaultName().equalsIgnoreCase(referenceCityName))
@@ -56,24 +52,26 @@ public class CityController {
                     })
                     .collect(Collectors.toList());
             } else {
-                filteredCities = List.of(); // ville de référence non trouvée
+                filteredCities = List.of();
             }
         }
 
-        // 3. Filtres sur le budget moyen
+        // Correction bug pricePerm2: utiliser cityService.getSafeAveragePrice(city) pour récupérer une moyenne
+        // Si la valeur est absente ou invalide, on considère 404 (valeur par défaut)
         if (minAverageBudget != null || maxAverageBudget != null) {
             filteredCities = filteredCities.stream()
                 .filter(city -> {
-                    PricePerm2 price = city.getPricePerm2();
-                    if (price == null || price.getAverage() == null) return false;
+                	double averagePrice = city.getSafeAveragePrice();  // méthode ajoutée pour gérer le bug
+
+                    // Si la moyenne vaut 404, on considère que les données sont manquantes, donc on exclut la ville
+                    if (averagePrice == 404) return false;
 
                     boolean match = true;
-
                     if (minAverageBudget != null) {
-                        match = match && price.getAverage() >= minAverageBudget;
+                        match = match && averagePrice >= minAverageBudget;
                     }
                     if (maxAverageBudget != null) {
-                        match = match && price.getAverage() <= maxAverageBudget;
+                        match = match && averagePrice <= maxAverageBudget;
                     }
 
                     return match;
@@ -81,12 +79,10 @@ public class CityController {
                 .collect(Collectors.toList());
         }
 
-        // 4. Filtre par région
         if (region != null && !region.isBlank()) {
             filteredCities = cityService.filterCitiesByRegion(filteredCities, region);
         }
 
-        // 5. Mapping DTO
         List<CityResponseDTO> dtos = filteredCities.stream()
             .map(city -> new CityResponseDTO(
                 city.getDefaultName(),

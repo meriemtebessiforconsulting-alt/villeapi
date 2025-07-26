@@ -1,11 +1,13 @@
 package com.example.villeapi;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+
+@JsonDeserialize(using = PricePerm2Deserializer.class)
 public class PricePerm2 {
     private Double average;
     private Double min;
     private Double max;
 
-    // getters et setters
     public Double getAverage() { return average; }
     public void setAverage(Double average) { this.average = average; }
 
@@ -14,4 +16,8 @@ public class PricePerm2 {
 
     public Double getMax() { return max; }
     public void setMax(Double max) { this.max = max; }
+
+    public double getSafeAverage() {
+        return (average != null) ? average : 404;
+    }
 }
