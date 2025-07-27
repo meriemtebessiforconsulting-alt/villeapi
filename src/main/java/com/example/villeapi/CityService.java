@@ -113,6 +113,39 @@ public class CityService {
             .orElse(Double.NaN);
     }
 
+    public List<City> filterCitiesInBox(List<City> allCities, List<String> boxCityNames) {
+        if (boxCityNames == null || boxCityNames.size() < 2) return allCities;
+
+        // Normaliser les noms pour comparer proprement
+        List<String> normalizedBoxNames = boxCityNames.stream()
+            .map(this::normalize)
+            .collect(Collectors.toList());
+
+        List<City> referenceCities = allCities.stream()
+            .filter(city -> normalizedBoxNames.contains(normalize(city.getDefaultName())))
+            .filter(city -> city.getGeoCoordinates() != null)
+            .collect(Collectors.toList());
+
+        if (referenceCities.size() < 2) return allCities;
+
+        // Calcul des bornes du rectangle
+        double minLat = referenceCities.stream().mapToDouble(c -> c.getGeoCoordinates().getLatitude()).min().orElse(Double.NaN);
+        double maxLat = referenceCities.stream().mapToDouble(c -> c.getGeoCoordinates().getLatitude()).max().orElse(Double.NaN);
+        double minLon = referenceCities.stream().mapToDouble(c -> c.getGeoCoordinates().getLongitude()).min().orElse(Double.NaN);
+        double maxLon = referenceCities.stream().mapToDouble(c -> c.getGeoCoordinates().getLongitude()).max().orElse(Double.NaN);
+
+        return allCities.stream()
+            .filter(city -> {
+                GeoCoordinates geo = city.getGeoCoordinates();
+                if (geo == null) return false;
+                double lat = geo.getLatitude();
+                double lon = geo.getLongitude();
+                return lat >= minLat && lat <= maxLat && lon >= minLon && lon <= maxLon;
+            })
+            .collect(Collectors.toList());
+    }
+
+    
     /**
      * Filtre les villes selon une plage de budget moyen (averagePrice).
      * Utilise getSafeAveragePrice() pour éviter les NullPointerException.

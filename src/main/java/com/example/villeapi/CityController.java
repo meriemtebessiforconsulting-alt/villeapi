@@ -1,9 +1,8 @@
 package com.example.villeapi;
 
 import org.springframework.web.bind.annotation.*;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
-import java.util.Map;
 
 @RestController
 @RequestMapping
@@ -11,10 +10,12 @@ public class CityController {
 
     private final CityService cityService;
     private final RootData rootData;
+    private final DistanceMatrixService distanceMatrixService;
 
-    public CityController(CityService cityService, RootData rootData) {
+    public CityController(CityService cityService, RootData rootData, DistanceMatrixService distanceMatrixService) {
         this.cityService = cityService;
         this.rootData = rootData;
+        this.distanceMatrixService = distanceMatrixService;
     }
 
     @GetMapping("/search")
@@ -26,12 +27,21 @@ public class CityController {
         @RequestParam(required = false) Double radiusKm,
         @RequestParam(required = false) Double minAverageBudget,
         @RequestParam(required = false) Double maxAverageBudget,
-        @RequestParam(required = false) String region
+        @RequestParam(required = false) String region,
+        @RequestParam(required = false) List<String> cityBox,
+        @RequestParam(required = false) String fromCityName
     ) {
         List<City> allCities = rootData.getCities().getCitiesList();
 
+        // Étape 1 : Filtres de base
         List<City> filteredCities = cityService.filterCities(allCities, equalCityName, nearCityName, minGlobalNote);
 
+        // Étape 2 : Filtre géographique par boîte (zone encadrée)
+        if (cityBox != null && cityBox.size() >= 2) {
+            filteredCities = cityService.filterCitiesInBox(filteredCities, cityBox);
+        }
+
+        // Étape 3 : Filtre géographique par rayon autour d'une ville
         if (referenceCityName != null && radiusKm != null) {
             City referenceCity = allCities.stream()
                 .filter(c -> c.getDefaultName().equalsIgnoreCase(referenceCityName))
@@ -56,39 +66,56 @@ public class CityController {
             }
         }
 
-        // Correction bug pricePerm2: utiliser cityService.getSafeAveragePrice(city) pour récupérer une moyenne
-        // Si la valeur est absente ou invalide, on considère 404 (valeur par défaut)
+        // Étape 4 : Filtre sur les prix moyens au m²
         if (minAverageBudget != null || maxAverageBudget != null) {
             filteredCities = filteredCities.stream()
                 .filter(city -> {
-                	double averagePrice = city.getSafeAveragePrice();  // méthode ajoutée pour gérer le bug
-
-                    // Si la moyenne vaut 404, on considère que les données sont manquantes, donc on exclut la ville
+                    double averagePrice = city.getSafeAveragePrice();
                     if (averagePrice == 404) return false;
 
                     boolean match = true;
-                    if (minAverageBudget != null) {
-                        match = match && averagePrice >= minAverageBudget;
-                    }
-                    if (maxAverageBudget != null) {
-                        match = match && averagePrice <= maxAverageBudget;
-                    }
+                    if (minAverageBudget != null) match = match && averagePrice >= minAverageBudget;
+                    if (maxAverageBudget != null) match = match && averagePrice <= maxAverageBudget;
 
                     return match;
                 })
                 .collect(Collectors.toList());
         }
 
+        // Étape 5 : Filtre par région
         if (region != null && !region.isBlank()) {
             filteredCities = cityService.filterCitiesByRegion(filteredCities, region);
         }
 
+        // Étape 6 : Distance depuis une ville d’origine
+        
+        Map<String, Double> carTripDuration;
+
+        if (fromCityName != null) {
+            City originCity = allCities.stream()
+                .filter(c -> c.getDefaultName().equalsIgnoreCase(fromCityName))
+                .findFirst()
+                .orElse(null);
+
+            if (originCity != null) {
+            	carTripDuration = distanceMatrixService.getDistances(originCity, filteredCities);
+            } else {
+            	carTripDuration = Collections.emptyMap();
+            }
+        } else {
+        	carTripDuration = Collections.emptyMap();
+        }
+
+
+        // Mapping vers DTOs
         List<CityResponseDTO> dtos = filteredCities.stream()
             .map(city -> new CityResponseDTO(
                 city.getDefaultName(),
                 city.getGeoCoordinates(),
                 city.getNotes(),
-                city.getPricePerm2()))
+                city.getPricePerm2(),
+                carTripDuration.getOrDefault(city.getDefaultName(), null)
+            ))
             .collect(Collectors.toList());
 
         List<String> cityNames = dtos.stream()
