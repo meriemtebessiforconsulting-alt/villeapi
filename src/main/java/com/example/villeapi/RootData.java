@@ -1,9 +1,7 @@
 package com.example.villeapi;
-import org.springframework.stereotype.Component;
-import com.example.villeapi.Cities;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
-
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class RootData {
 
     private String country;
