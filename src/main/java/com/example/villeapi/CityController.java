@@ -45,7 +45,7 @@ public class CityController {
         // Étape 3 : Filtre par rayon
         if (referenceCityName != null && radiusKm != null) {
             City referenceCity = allCities.stream()
-                .filter(c -> c.getDefaultName().equalsIgnoreCase(referenceCityName))
+                .filter(c -> referenceCityName.equalsIgnoreCase(c.getDefaultName())) // ✅ inversion pour éviter NPE
                 .findFirst()
                 .orElse(null);
 
@@ -65,6 +65,7 @@ public class CityController {
                 filteredCities = List.of();
             }
         }
+
 
         // Étape 4 : Filtre sur les prix moyens au m²
         if (minAverageBudget != null || maxAverageBudget != null) {
@@ -104,10 +105,11 @@ public class CityController {
         // Étape 6 : Distances
         Map<String, Double> carTripDuration;
         if (fromCityName != null) {
-            City originCity = allCities.stream()
-                .filter(c -> c.getDefaultName().equalsIgnoreCase(fromCityName))
-                .findFirst()
-                .orElse(null);
+        	City originCity = allCities.stream()
+        		    .filter(c -> fromCityName != null && fromCityName.equalsIgnoreCase(c.getDefaultName())) // ✅ safe
+        		    .findFirst()
+        		    .orElse(null);
+
 
             if (originCity != null) {
                 carTripDuration = distanceMatrixService.getDistances(originCity, filteredCities);
