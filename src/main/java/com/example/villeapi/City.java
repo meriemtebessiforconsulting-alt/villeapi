@@ -1,7 +1,6 @@
 package com.example.villeapi;
 
 import java.util.List;
-
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 @JsonIgnoreProperties(ignoreUnknown = true) // Ignore les champs JSON non mappés
@@ -27,8 +26,7 @@ public class City {
     private PricePerm2 pricePerm2;
     private String adminName1;
 
-    // Getters et setters
-
+    // --- Getters / Setters ---
     public String getGeonameId() { return geonameId; }
     public void setGeonameId(String geonameId) { this.geonameId = geonameId; }
 
@@ -90,8 +88,8 @@ public class City {
     public void setAdminName1(String adminName1) { this.adminName1 = adminName1; }
 
     /**
-     * Retourne la moyenne sécurisée du prix.
-     * Si pricePerm2 ou average est null, renvoie 404.
+     * Retourne la moyenne sécurisée du prix au m².
+     * Si pricePerm2 ou average est null → 404.
      */
     public double getSafeAveragePrice() {
         if (pricePerm2 == null || pricePerm2.getAverage() == null) {
@@ -99,6 +97,32 @@ public class City {
         }
         return pricePerm2.getAverage();
     }
+
+    /**
+     * Vérifie si la ville est abordable selon un budget maximum
+     * ou si son prix minimum est en-dessous du budget.
+     */
+    public boolean isAffordable(double maxBudget) {
+        if (pricePerm2 == null) return false;
+
+        Double avg = pricePerm2.getAverage();
+        Double min = pricePerm2.getMin();
+
+        boolean avgOk = avg != null && avg <= maxBudget;
+        boolean minOk = min != null && min <= maxBudget;
+
+        return avgOk || minOk;
+    }
     
+    /**
+     * Retourne le prix minimum au m² (minBudget) de manière sécurisée.
+     * Si non défini → retourne null.
+     */
+    public Double getMinBudget() {
+        if (pricePerm2 == null || pricePerm2.getMin() == null) {
+            return null;
+        }
+        return pricePerm2.getMin();
+    }
 
 }

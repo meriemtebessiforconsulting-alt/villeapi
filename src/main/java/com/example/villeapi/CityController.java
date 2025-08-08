@@ -27,6 +27,7 @@ public class CityController {
         @RequestParam(required = false) Double radiusKm,
         @RequestParam(required = false) Double minAverageBudget,
         @RequestParam(required = false) Double maxAverageBudget,
+        @RequestParam(required = false) Double maxAffordableBudget, // ✅ Nouveau filtre
         @RequestParam(required = false) String region,
         @RequestParam(required = false) List<String> cityBox,
         @RequestParam(required = false) String fromCityName
@@ -36,12 +37,12 @@ public class CityController {
         // Étape 1 : Filtres de base
         List<City> filteredCities = cityService.filterCities(allCities, equalCityName, nearCityName, minGlobalNote);
 
-        // Étape 2 : Filtre géographique par boîte (zone encadrée)
+        // Étape 2 : Filtre géographique par boîte
         if (cityBox != null && cityBox.size() >= 2) {
             filteredCities = cityService.filterCitiesInBox(filteredCities, cityBox);
         }
 
-        // Étape 3 : Filtre géographique par rayon autour d'une ville
+        // Étape 3 : Filtre par rayon
         if (referenceCityName != null && radiusKm != null) {
             City referenceCity = allCities.stream()
                 .filter(c -> c.getDefaultName().equalsIgnoreCase(referenceCityName))
@@ -56,7 +57,6 @@ public class CityController {
                     .filter(city -> {
                         GeoCoordinates geo = city.getGeoCoordinates();
                         if (geo == null) return false;
-
                         double distance = cityService.calculateDistanceKm(refLat, refLon, geo.getLatitude(), geo.getLongitude());
                         return distance <= radiusKm;
                     })
@@ -82,15 +82,27 @@ public class CityController {
                 .collect(Collectors.toList());
         }
 
+        // ✅ Étape 4 bis : Nouveau filtre maxAffordableBudget
+        if (maxAffordableBudget != null) {
+            filteredCities = filteredCities.stream()
+                .filter(city -> {
+                    double averagePrice = city.getSafeAveragePrice();
+                    if (averagePrice == 404) return false;
+
+                    Double minBudget = city.getMinBudget(); // supposé exister dans City
+                    return averagePrice <= maxAffordableBudget || 
+                           (minBudget != null && minBudget <= maxAffordableBudget);
+                })
+                .collect(Collectors.toList());
+        }
+
         // Étape 5 : Filtre par région
         if (region != null && !region.isBlank()) {
             filteredCities = cityService.filterCitiesByRegion(filteredCities, region);
         }
 
-        // Étape 6 : Distance depuis une ville d’origine
-        
+        // Étape 6 : Distances
         Map<String, Double> carTripDuration;
-
         if (fromCityName != null) {
             City originCity = allCities.stream()
                 .filter(c -> c.getDefaultName().equalsIgnoreCase(fromCityName))
@@ -98,16 +110,15 @@ public class CityController {
                 .orElse(null);
 
             if (originCity != null) {
-            	carTripDuration = distanceMatrixService.getDistances(originCity, filteredCities);
+                carTripDuration = distanceMatrixService.getDistances(originCity, filteredCities);
             } else {
-            	carTripDuration = Collections.emptyMap();
+                carTripDuration = Collections.emptyMap();
             }
         } else {
-        	carTripDuration = Collections.emptyMap();
+            carTripDuration = Collections.emptyMap();
         }
 
-
-        // Mapping vers DTOs
+        // Mapping DTO
         List<CityResponseDTO> dtos = filteredCities.stream()
             .map(city -> new CityResponseDTO(
                 city.getDefaultName(),
@@ -118,13 +129,9 @@ public class CityController {
             ))
             .collect(Collectors.toList());
 
-        List<String> cityNames = dtos.stream()
-            .map(CityResponseDTO::getName)
-            .collect(Collectors.toList());
-
         return Map.of(
-            "cities", cityNames,
-            "count", cityNames.size(),
+            "cities", dtos.stream().map(CityResponseDTO::getName).collect(Collectors.toList()),
+            "count", dtos.size(),
             "details", dtos
         );
     }
