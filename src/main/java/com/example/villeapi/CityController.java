@@ -27,25 +27,39 @@ public class CityController {
         @RequestParam(required = false) Double radiusKm,
         @RequestParam(required = false) Double minAverageBudget,
         @RequestParam(required = false) Double maxAverageBudget,
-        @RequestParam(required = false) Double maxAffordableBudget, // ✅ Nouveau filtre
+        @RequestParam(required = false) Double maxAffordableBudget,
         @RequestParam(required = false) String region,
         @RequestParam(required = false) List<String> cityBox,
         @RequestParam(required = false) String fromCityName
     ) {
         List<City> allCities = rootData.getCities().getCitiesList();
+        List<City> filteredCities;
 
-        // Étape 1 : Filtres de base
-        List<City> filteredCities = cityService.filterCities(allCities, equalCityName, nearCityName, minGlobalNote);
+        // ✅ Cas spécial : nearCityName correspond exactement à une ville
+        if (nearCityName != null && !nearCityName.isBlank()) {
+            Optional<City> exactMatch = allCities.stream()
+                .filter(c -> nearCityName.equalsIgnoreCase(c.getDefaultName()))
+                .findFirst();
 
-        // Étape 2 : Filtre géographique par boîte
+            if (exactMatch.isPresent()) {
+                filteredCities = List.of(exactMatch.get());
+            } else {
+                // Sinon, on passe par la recherche "proche"
+                filteredCities = cityService.filterCities(allCities, equalCityName, nearCityName, minGlobalNote);
+            }
+        } else {
+            filteredCities = cityService.filterCities(allCities, equalCityName, nearCityName, minGlobalNote);
+        }
+
+        // ✅ Étape 2 : Filtre géographique par boîte
         if (cityBox != null && cityBox.size() >= 2) {
             filteredCities = cityService.filterCitiesInBox(filteredCities, cityBox);
         }
 
-        // Étape 3 : Filtre par rayon
+        // ✅ Étape 3 : Filtre par rayon
         if (referenceCityName != null && radiusKm != null) {
             City referenceCity = allCities.stream()
-                .filter(c -> referenceCityName.equalsIgnoreCase(c.getDefaultName())) // ✅ inversion pour éviter NPE
+                .filter(c -> referenceCityName.equalsIgnoreCase(c.getDefaultName()))
                 .findFirst()
                 .orElse(null);
 
@@ -66,8 +80,7 @@ public class CityController {
             }
         }
 
-
-        // Étape 4 : Filtre sur les prix moyens au m²
+        // ✅ Étape 4 : Filtre budget min/max
         if (minAverageBudget != null || maxAverageBudget != null) {
             filteredCities = filteredCities.stream()
                 .filter(city -> {
@@ -83,33 +96,32 @@ public class CityController {
                 .collect(Collectors.toList());
         }
 
-        // ✅ Étape 4 bis : Nouveau filtre maxAffordableBudget
+        // ✅ Étape 4 bis : maxAffordableBudget
         if (maxAffordableBudget != null) {
             filteredCities = filteredCities.stream()
                 .filter(city -> {
                     double averagePrice = city.getSafeAveragePrice();
                     if (averagePrice == 404) return false;
 
-                    Double minBudget = city.getMinBudget(); // supposé exister dans City
+                    Double minBudget = city.getMinBudget();
                     return averagePrice <= maxAffordableBudget || 
                            (minBudget != null && minBudget <= maxAffordableBudget);
                 })
                 .collect(Collectors.toList());
         }
 
-        // Étape 5 : Filtre par région
+        // ✅ Étape 5 : Région
         if (region != null && !region.isBlank()) {
             filteredCities = cityService.filterCitiesByRegion(filteredCities, region);
         }
 
-        // Étape 6 : Distances
+        // ✅ Étape 6 : Distances
         Map<String, Double> carTripDuration;
         if (fromCityName != null) {
-        	City originCity = allCities.stream()
-        		    .filter(c -> fromCityName != null && fromCityName.equalsIgnoreCase(c.getDefaultName())) // ✅ safe
-        		    .findFirst()
-        		    .orElse(null);
-
+            City originCity = allCities.stream()
+                .filter(c -> fromCityName.equalsIgnoreCase(c.getDefaultName()))
+                .findFirst()
+                .orElse(null);
 
             if (originCity != null) {
                 carTripDuration = distanceMatrixService.getDistances(originCity, filteredCities);
@@ -120,7 +132,7 @@ public class CityController {
             carTripDuration = Collections.emptyMap();
         }
 
-        // Mapping DTO
+        // ✅ Mapping DTO
         List<CityResponseDTO> dtos = filteredCities.stream()
             .map(city -> new CityResponseDTO(
                 city.getDefaultName(),
@@ -137,6 +149,7 @@ public class CityController {
             "details", dtos
         );
     }
+
 
     @GetMapping("/hello")
     public String hello() {

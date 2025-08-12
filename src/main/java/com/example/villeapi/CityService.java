@@ -3,7 +3,11 @@ package com.example.villeapi;
 import org.springframework.stereotype.Service;
 import java.text.Normalizer;
 import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
 import java.util.stream.Collectors;
+import org.apache.commons.text.similarity.LevenshteinDistance;
+import org.apache.commons.text.similarity.FuzzyScore;
 
 @Service
 public class CityService {
@@ -30,13 +34,6 @@ public class CityService {
                 return cityRegion != null && normalize(cityRegion).equals(normalizedRegion);
             })
             .collect(Collectors.toList());
-    }
-
-    // Normalisation accents/majuscules
-    private String normalize(String input) {
-        if (input == null) return "";
-        String normalized = Normalizer.normalize(input.toLowerCase(), Normalizer.Form.NFD);
-        return normalized.replaceAll("\\p{M}", "");
     }
 
     public List<City> filterCitiesByNameContaining(List<City> cities, String searchTerm) {
@@ -79,7 +76,7 @@ public class CityService {
     public List<City> filterCities(List<City> allCities, String equalCityName, String nearCityName, Double minGlobalNote) {
         return allCities.stream()
             .filter(city -> equalCityName == null || normalize(city.getDefaultName()).equals(normalize(equalCityName)))
-            .filter(city -> nearCityName == null || normalize(city.getDefaultName()).contains(normalize(nearCityName)))
+            .filter(city -> nearCityName == null || isNearCityMatch(city.getDefaultName(), nearCityName))
             .filter(city -> {
                 if (minGlobalNote == null) return true;
                 Double cityNote = calculateAverageNote(city.getNotes());
@@ -151,10 +148,81 @@ public class CityService {
         return cities.stream()
             .filter(city -> {
                 double avgPrice = city.getSafeAveragePrice();
-                Double minBudget = city.getMinBudget(); // suppose que City a cette méthode
+                Double minBudget = safeGetMinBudget(city);
                 return (avgPrice != 404 && avgPrice <= maxAffordableBudget)
                     || (minBudget != null && minBudget <= maxAffordableBudget);
             })
             .collect(Collectors.toList());
+    }
+    
+    public List<City> filterCitiesByNameFuzzy(List<City> cities, String searchTerm) {
+        if (searchTerm == null || searchTerm.isBlank()) return cities;
+
+        String normalizedSearchTerm = normalize(searchTerm);
+        LevenshteinDistance distance = new LevenshteinDistance();
+
+        return cities.stream()
+            .filter(city -> {
+                String cityName = normalize(city.getDefaultName());
+
+                // Cas 1 : contient directement la chaîne
+                if (cityName.contains(normalizedSearchTerm)) return true;
+
+                // Cas 2 : tolérance aux fautes
+                int maxDistance = Math.max(1, normalizedSearchTerm.length() / 4);
+                return distance.apply(cityName, normalizedSearchTerm) <= maxDistance;
+            })
+            .collect(Collectors.toList());
+    }
+    
+    public List<City> filterCitiesByNearCityName(List<City> cities, String nearCityName) {
+        if (nearCityName == null || nearCityName.isBlank()) return cities;
+
+        String normalizedSearch = normalize(nearCityName);
+
+        // 1️⃣ Correspondance exacte
+        Optional<City> exactMatch = cities.stream()
+            .filter(city -> normalize(city.getDefaultName()).equals(normalizedSearch))
+            .findFirst();
+
+        if (exactMatch.isPresent()) {
+            return List.of(exactMatch.get());
+        }
+
+        // 2️⃣ Sinon fuzzy search
+        FuzzyScore fuzzyScore = new FuzzyScore(Locale.FRENCH);
+        return cities.stream()
+            .filter(city -> {
+                String normalizedCity = normalize(city.getDefaultName());
+                return normalizedCity.contains(normalizedSearch)
+                    || fuzzyScore.fuzzyScore(normalizedCity, normalizedSearch) > 80;
+            })
+            .collect(Collectors.toList());
+    }
+    
+    private String normalize(String text) {
+        if (text == null) return "";
+        String noAccents = Normalizer.normalize(text, Normalizer.Form.NFD)
+            .replaceAll("\\p{InCombiningDiacriticalMarks}+", "");
+        return noAccents.toLowerCase().replaceAll("[^a-z0-9]", "");
+    }
+    
+    private boolean isNearCityMatch(String cityName, String searchTerm) {
+        String normalizedCity = normalize(cityName);
+        String normalizedSearch = normalize(searchTerm);
+
+        if (normalizedCity.contains(normalizedSearch)) return true;
+
+        LevenshteinDistance distance = new LevenshteinDistance();
+        int maxDistance = Math.max(1, normalizedSearch.length() / 4);
+        return distance.apply(normalizedCity, normalizedSearch) <= maxDistance;
+    }
+
+    private Double safeGetMinBudget(City city) {
+        try {
+            return city.getPricePerm2() != null ? city.getPricePerm2().getMin() : null;
+        } catch (Exception e) {
+            return null;
+        }
     }
 }
